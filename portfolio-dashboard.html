@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Portfolio Dashboard — 60/40</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="dashboard.js"></script>
 <style>
   :root {
     --bg: #0f1117;
@@ -220,24 +221,6 @@
 
 <script>
 // --- Performance Chart ---
-function generatePerfData(months) {
-  const labels = [];
-  const portfolio = [];
-  const benchmark = [];
-  let pVal = 100, bVal = 100;
-  const now = new Date(2026, 2, 9);
-  for (let i = months; i >= 0; i--) {
-    const d = new Date(now);
-    d.setMonth(d.getMonth() - i);
-    labels.push(d.toLocaleDateString('en-US', { month: 'short', year: i % 12 === 0 || i === months ? '2-digit' : undefined }));
-    pVal *= 1 + (0.005 + Math.sin(i * 0.3) * 0.008 + (Math.random() - 0.45) * 0.012);
-    bVal *= 1 + (0.004 + Math.sin(i * 0.25) * 0.007 + (Math.random() - 0.45) * 0.011);
-    portfolio.push(+pVal.toFixed(2));
-    benchmark.push(+bVal.toFixed(2));
-  }
-  return { labels, portfolio, benchmark };
-}
-
 const perfCtx = document.getElementById('perfChart').getContext('2d');
 let perfChart;
 function renderPerf(months) {
@@ -268,8 +251,7 @@ renderPerf(12);
 function setRange(range, el) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
-  const map = { '1Y': 12, '3Y': 36, '5Y': 60, 'ALL': 120 };
-  renderPerf(map[range]);
+  renderPerf(getRangeMonths(range));
 }
 
 // --- Allocation Doughnut ---

@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Dashboard Tests</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/qunit@2.21.0/qunit/qunit.css">
+<script src="https://cdn.jsdelivr.net/npm/qunit@2.21.0/qunit/qunit.js"></script>
+<script src="dashboard.js"></script>
+</head>
+<body>
+<div id="qunit"></div>
+<div id="qunit-fixture"></div>
+<script>
+// ─── generatePerfData ───────────────────────────────────────────────────────
+
+QUnit.module('generatePerfData', function () {
+
+  QUnit.test('returns labels, portfolio, and benchmark arrays', function (assert) {
+    const result = generatePerfData(12);
+    assert.ok(Array.isArray(result.labels),    'labels is an array');
+    assert.ok(Array.isArray(result.portfolio), 'portfolio is an array');
+    assert.ok(Array.isArray(result.benchmark), 'benchmark is an array');
+  });
+
+  QUnit.test('array lengths equal months + 1', function (assert) {
+    [1, 12, 36, 60, 120].forEach(function (m) {
+      const result = generatePerfData(m);
+      assert.strictEqual(result.labels.length,    m + 1, `labels length for ${m} months`);
+      assert.strictEqual(result.portfolio.length, m + 1, `portfolio length for ${m} months`);
+      assert.strictEqual(result.benchmark.length, m + 1, `benchmark length for ${m} months`);
+    });
+  });
+
+  QUnit.test('all portfolio values are positive numbers', function (assert) {
+    const { portfolio } = generatePerfData(12);
+    portfolio.forEach(function (v, i) {
+      assert.ok(typeof v === 'number' && v > 0, `portfolio[${i}] = ${v} is a positive number`);
+    });
+  });
+
+  QUnit.test('all benchmark values are positive numbers', function (assert) {
+    const { benchmark } = generatePerfData(12);
+    benchmark.forEach(function (v, i) {
+      assert.ok(typeof v === 'number' && v > 0, `benchmark[${i}] = ${v} is a positive number`);
+    });
+  });
+
+  QUnit.test('all values are rounded to 2 decimal places', function (assert) {
+    const { portfolio, benchmark } = generatePerfData(12);
+    [...portfolio, ...benchmark].forEach(function (v) {
+      assert.ok(String(v).replace(/^\d+\.?/, '').length <= 2, `${v} has at most 2 decimal places`);
+    });
+  });
+
+  QUnit.test('all labels are non-empty strings', function (assert) {
+    const { labels } = generatePerfData(12);
+    labels.forEach(function (l, i) {
+      assert.ok(typeof l === 'string' && l.length > 0, `labels[${i}] = "${l}" is a non-empty string`);
+    });
+  });
+
+  QUnit.test('throws RangeError for non-positive months', function (assert) {
+    assert.throws(() => generatePerfData(0),  RangeError, 'throws for 0');
+    assert.throws(() => generatePerfData(-1), RangeError, 'throws for -1');
+  });
+
+  QUnit.test('throws RangeError for non-integer months', function (assert) {
+    assert.throws(() => generatePerfData(1.5),     RangeError, 'throws for 1.5');
+    assert.throws(() => generatePerfData('twelve'), RangeError, 'throws for string');
+  });
+
+});
+
+// ─── getRangeMonths ─────────────────────────────────────────────────────────
+
+QUnit.module('getRangeMonths', function () {
+
+  QUnit.test('returns correct month counts for all valid keys', function (assert) {
+    assert.strictEqual(getRangeMonths('1Y'),  12,  '1Y → 12');
+    assert.strictEqual(getRangeMonths('3Y'),  36,  '3Y → 36');
+    assert.strictEqual(getRangeMonths('5Y'),  60,  '5Y → 60');
+    assert.strictEqual(getRangeMonths('ALL'), 120, 'ALL → 120');
+  });
+
+  QUnit.test('returns undefined for unknown range keys', function (assert) {
+    assert.strictEqual(getRangeMonths('10Y'), undefined, '10Y → undefined');
+    assert.strictEqual(getRangeMonths(''),    undefined, 'empty string → undefined');
+    assert.strictEqual(getRangeMonths(null),  undefined, 'null → undefined');
+  });
+
+  QUnit.test('all returned values are positive integers', function (assert) {
+    ['1Y', '3Y', '5Y', 'ALL'].forEach(function (key) {
+      const v = getRangeMonths(key);
+      assert.ok(Number.isInteger(v) && v > 0, `${key} → ${v} is a positive integer`);
+    });
+  });
+
+});
+
+// ─── Allocation ─────────────────────────────────────────────────────────────
+
+QUnit.module('ALLOCATION', function () {
+
+  QUnit.test('bonds + equities sum to 100', function (assert) {
+    assert.strictEqual(totalAllocation(), 100, 'allocation sums to 100%');
+  });
+
+  QUnit.test('bonds allocation is 60', function (assert) {
+    assert.strictEqual(ALLOCATION.bonds, 60, 'bonds = 60%');
+  });
+
+  QUnit.test('equities allocation is 40', function (assert) {
+    assert.strictEqual(ALLOCATION.equities, 40, 'equities = 40%');
+  });
+
+  QUnit.test('both values are positive numbers', function (assert) {
+    assert.ok(ALLOCATION.bonds    > 0, 'bonds > 0');
+    assert.ok(ALLOCATION.equities > 0, 'equities > 0');
+  });
+
+});
+
+// ─── Holdings ───────────────────────────────────────────────────────────────
+
+QUnit.module('HOLDINGS', function () {
+
+  QUnit.test('total weight sums to 100', function (assert) {
+    assert.strictEqual(totalHoldingsWeight(), 100, 'holdings weights sum to 100%');
+  });
+
+  QUnit.test('every holding has name, type, and positive weight', function (assert) {
+    HOLDINGS.forEach(function (h) {
+      assert.ok(typeof h.name === 'string' && h.name.length > 0, `"${h.name}" has a name`);
+      assert.ok(h.type === 'Bond' || h.type === 'Equity',        `"${h.name}" type is Bond or Equity`);
+      assert.ok(typeof h.weight === 'number' && h.weight > 0,    `"${h.name}" weight > 0`);
+    });
+  });
+
+  QUnit.test('bond weights sum to 60', function (assert) {
+    const bondWeight = HOLDINGS.filter(h => h.type === 'Bond').reduce((s, h) => s + h.weight, 0);
+    assert.strictEqual(bondWeight, 60, 'bond weights sum to 60%');
+  });
+
+  QUnit.test('equity weights sum to 40', function (assert) {
+    const equityWeight = HOLDINGS.filter(h => h.type === 'Equity').reduce((s, h) => s + h.weight, 0);
+    assert.strictEqual(equityWeight, 40, 'equity weights sum to 40%');
+  });
+
+  QUnit.test('includes MSCI ACWI', function (assert) {
+    const acwi = HOLDINGS.find(h => h.name.includes('ACWI'));
+    assert.ok(acwi, 'MSCI ACWI holding exists');
+    assert.strictEqual(acwi.type, 'Equity', 'MSCI ACWI is classified as Equity');
+    assert.strictEqual(acwi.weight, 40, 'MSCI ACWI has 40% weight');
+  });
+
+});
+
+// ─── Income Data ────────────────────────────────────────────────────────────
+
+QUnit.module('INCOME_DATA', function () {
+
+  QUnit.test('INCOME_MONTHS and INCOME_DATA have equal length', function (assert) {
+    assert.strictEqual(INCOME_DATA.length, INCOME_MONTHS.length, 'lengths match');
+  });
+
+  QUnit.test('all income values are positive numbers', function (assert) {
+    INCOME_DATA.forEach(function (v, i) {
+      assert.ok(typeof v === 'number' && v > 0, `INCOME_DATA[${i}] = ${v} is positive`);
+    });
+  });
+
+  QUnit.test('all income values are plausible (between $100 and $100,000)', function (assert) {
+    INCOME_DATA.forEach(function (v, i) {
+      assert.ok(v >= 100 && v <= 100000, `INCOME_DATA[${i}] = ${v} is in plausible range`);
+    });
+  });
+
+  QUnit.test('all months are non-empty strings', function (assert) {
+    INCOME_MONTHS.forEach(function (m, i) {
+      assert.ok(typeof m === 'string' && m.length > 0, `INCOME_MONTHS[${i}] = "${m}" is valid`);
+    });
+  });
+
+});
+</script>
+</body>
+</html>
