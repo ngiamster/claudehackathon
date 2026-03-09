@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portfolio Dashboard — 60/40</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #1a1d27;
+    --border: #2a2d3a;
+    --text: #e4e4e7;
+    --muted: #9ca3af;
+    --green: #22c55e;
+    --red: #ef4444;
+    --blue: #3b82f6;
+    --purple: #a78bfa;
+    --amber: #f59e0b;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px;
+    min-height: 100vh;
+  }
+  h1 { font-size: 1.75rem; font-weight: 700; margin-bottom: 4px; }
+  .subtitle { color: var(--muted); font-size: 0.9rem; margin-bottom: 24px; }
+  .grid { display: grid; gap: 20px; }
+  .grid-4 { grid-template-columns: repeat(4, 1fr); }
+  .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .grid-2 { grid-template-columns: 1fr 1fr; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .card-title { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+  .card-value { font-size: 1.75rem; font-weight: 700; }
+  .card-change { font-size: 0.85rem; margin-top: 4px; }
+  .positive { color: var(--green); }
+  .negative { color: var(--red); }
+  .chart-container { position: relative; width: 100%; }
+  .section-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  th { text-align: left; color: var(--muted); font-weight: 500; padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  td { padding: 12px; border-bottom: 1px solid var(--border); }
+  tr:last-child td { border-bottom: none; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+  .tag-green { background: rgba(34,197,94,0.15); color: var(--green); }
+  .tag-red { background: rgba(239,68,68,0.15); color: var(--red); }
+  .progress-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+  .progress-fill { height: 100%; border-radius: 3px; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+  .tab { padding: 6px 16px; border-radius: 6px; font-size: 0.85rem; cursor: pointer; border: none; background: transparent; color: var(--muted); transition: all 0.2s; }
+  .tab.active { background: var(--blue); color: white; }
+  .tab:hover:not(.active) { background: var(--border); color: var(--text); }
+  .risk-meter { display: flex; gap: 3px; align-items: center; margin-top: 8px; }
+  .risk-block { width: 24px; height: 10px; border-radius: 2px; background: var(--border); }
+  .risk-block.filled { background: var(--amber); }
+  @media (max-width: 1024px) {
+    .grid-4 { grid-template-columns: repeat(2, 1fr); }
+    .grid-3 { grid-template-columns: 1fr; }
+    .grid-2 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Portfolio Dashboard</h1>
+<p class="subtitle">60% Bonds / 40% Equities &mdash; Conservative Growth Strategy &bull; Updated Mar 9, 2026</p>
+
+<!-- KPI Cards -->
+<div class="grid grid-4" style="margin-bottom: 20px;">
+  <div class="card">
+    <div class="card-title">Total Value</div>
+    <div class="card-value">$1,247,830</div>
+    <div class="card-change positive">+$42,310 (+3.51%) YTD</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Annual Return</div>
+    <div class="card-value positive">+6.82%</div>
+    <div class="card-change" style="color:var(--muted)">Benchmark: +5.94%</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Yield (TTM)</div>
+    <div class="card-value">3.41%</div>
+    <div class="card-change" style="color:var(--muted)">$42,550 annual income</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Sharpe Ratio</div>
+    <div class="card-value">1.24</div>
+    <div class="card-change positive">Above average risk-adjusted</div>
+  </div>
+</div>
+
+<!-- Charts Row -->
+<div class="grid grid-3" style="margin-bottom: 20px;">
+  <div class="card" style="grid-column: span 2;">
+    <div class="section-title">Portfolio Performance</div>
+    <div class="tabs">
+      <button class="tab active" onclick="setRange('1Y',this)">1Y</button>
+      <button class="tab" onclick="setRange('3Y',this)">3Y</button>
+      <button class="tab" onclick="setRange('5Y',this)">5Y</button>
+      <button class="tab" onclick="setRange('ALL',this)">All</button>
+    </div>
+    <div class="chart-container" style="height: 300px;">
+      <canvas id="perfChart"></canvas>
+    </div>
+  </div>
+  <div class="card">
+    <div class="section-title">Asset Allocation</div>
+    <div class="chart-container" style="height: 260px; display:flex; align-items:center; justify-content:center;">
+      <canvas id="allocChart"></canvas>
+    </div>
+    <div style="margin-top: 16px; font-size: 0.85rem;">
+      <div style="display:flex; justify-content:space-between; margin-bottom: 6px;"><span><span class="dot" style="background:#3b82f6"></span>Bonds</span><span>60% &mdash; $748,698</span></div>
+      <div style="display:flex; justify-content:space-between;"><span><span class="dot" style="background:#a78bfa"></span>Equities</span><span>40% &mdash; $499,132</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- Holdings & Metrics -->
+<div class="grid grid-2" style="margin-bottom: 20px;">
+  <div class="card">
+    <div class="section-title">Holdings</div>
+    <table>
+      <thead>
+        <tr><th>Asset</th><th>Type</th><th>Weight</th><th>Return</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>US Aggregate Bond (AGG)</td><td>Bond</td><td>25%</td>
+          <td><span class="tag tag-green">+4.2%</span></td>
+        </tr>
+        <tr>
+          <td>Treasury 10-20Y (TLH)</td><td>Bond</td><td>15%</td>
+          <td><span class="tag tag-green">+5.8%</span></td>
+        </tr>
+        <tr>
+          <td>Investment Grade Corp (LQD)</td><td>Bond</td><td>12%</td>
+          <td><span class="tag tag-green">+3.9%</span></td>
+        </tr>
+        <tr>
+          <td>TIPS (TIP)</td><td>Bond</td><td>8%</td>
+          <td><span class="tag tag-green">+2.1%</span></td>
+        </tr>
+        <tr>
+          <td>MSCI ACWI (ACWI)</td><td>Equity</td><td>40%</td>
+          <td><span class="tag tag-green">+8.1%</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div>
+    <div class="card" style="margin-bottom: 20px;">
+      <div class="section-title">Risk Metrics</div>
+      <table>
+        <tbody>
+          <tr><td style="color:var(--muted)">Volatility (Ann.)</td><td style="text-align:right">7.2%</td></tr>
+          <tr><td style="color:var(--muted)">Max Drawdown</td><td style="text-align:right; color:var(--red)">-8.4%</td></tr>
+          <tr><td style="color:var(--muted)">Beta vs S&P 500</td><td style="text-align:right">0.42</td></tr>
+          <tr><td style="color:var(--muted)">Sortino Ratio</td><td style="text-align:right">1.68</td></tr>
+          <tr><td style="color:var(--muted)">Duration (Bonds)</td><td style="text-align:right">6.3 yrs</td></tr>
+        </tbody>
+      </table>
+      <div style="margin-top: 14px;">
+        <div style="font-size: 0.8rem; color: var(--muted); margin-bottom: 4px;">Overall Risk Level</div>
+        <div class="risk-meter">
+          <div class="risk-block filled"></div>
+          <div class="risk-block filled"></div>
+          <div class="risk-block filled"></div>
+          <div class="risk-block"></div>
+          <div class="risk-block"></div>
+          <div class="risk-block"></div>
+          <div class="risk-block"></div>
+          <span style="margin-left: 8px; font-size: 0.85rem; color: var(--amber);">Low-Moderate</span>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="section-title">Monthly Income</div>
+      <div class="chart-container" style="height: 160px;">
+        <canvas id="incomeChart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Rebalancing -->
+<div class="card">
+  <div class="section-title">Rebalancing Status</div>
+  <div class="grid grid-4" style="gap: 16px;">
+    <div>
+      <div style="font-size:0.8rem; color:var(--muted); margin-bottom:4px;">Bonds — Target 60%</div>
+      <div style="font-size:1.1rem; font-weight:600;">Current: 59.8%</div>
+      <div class="progress-bar"><div class="progress-fill" style="width:99.7%; background:var(--blue);"></div></div>
+    </div>
+    <div>
+      <div style="font-size:0.8rem; color:var(--muted); margin-bottom:4px;">Equities — Target 40%</div>
+      <div style="font-size:1.1rem; font-weight:600;">Current: 40.2%</div>
+      <div class="progress-bar"><div class="progress-fill" style="width:100%; background:var(--purple);"></div></div>
+    </div>
+    <div>
+      <div style="font-size:0.8rem; color:var(--muted); margin-bottom:4px;">Drift</div>
+      <div style="font-size:1.1rem; font-weight:600; color:var(--green);">0.2%</div>
+      <div style="font-size:0.8rem; color:var(--muted); margin-top:6px;">Within tolerance (±5%)</div>
+    </div>
+    <div>
+      <div style="font-size:0.8rem; color:var(--muted); margin-bottom:4px;">Last Rebalanced</div>
+      <div style="font-size:1.1rem; font-weight:600;">Jan 15, 2026</div>
+      <div style="font-size:0.8rem; color:var(--muted); margin-top:6px;">Next review: Apr 15</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// --- Performance Chart ---
+function generatePerfData(months) {
+  const labels = [];
+  const portfolio = [];
+  const benchmark = [];
+  let pVal = 100, bVal = 100;
+  const now = new Date(2026, 2, 9);
+  for (let i = months; i >= 0; i--) {
+    const d = new Date(now);
+    d.setMonth(d.getMonth() - i);
+    labels.push(d.toLocaleDateString('en-US', { month: 'short', year: i % 12 === 0 || i === months ? '2-digit' : undefined }));
+    pVal *= 1 + (0.005 + Math.sin(i * 0.3) * 0.008 + (Math.random() - 0.45) * 0.012);
+    bVal *= 1 + (0.004 + Math.sin(i * 0.25) * 0.007 + (Math.random() - 0.45) * 0.011);
+    portfolio.push(+pVal.toFixed(2));
+    benchmark.push(+bVal.toFixed(2));
+  }
+  return { labels, portfolio, benchmark };
+}
+
+const perfCtx = document.getElementById('perfChart').getContext('2d');
+let perfChart;
+function renderPerf(months) {
+  const data = generatePerfData(months);
+  if (perfChart) perfChart.destroy();
+  perfChart = new Chart(perfCtx, {
+    type: 'line',
+    data: {
+      labels: data.labels,
+      datasets: [
+        { label: 'Portfolio', data: data.portfolio, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.08)', fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2.5 },
+        { label: 'Benchmark', data: data.benchmark, borderColor: '#6b7280', borderDash: [6,4], fill: false, tension: 0.3, pointRadius: 0, borderWidth: 1.5 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: true, position: 'top', labels: { color: '#9ca3af', usePointStyle: true, pointStyle: 'line', font: { size: 12 } } } },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#6b7280', maxTicksLimit: 12 } },
+        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#6b7280', callback: v => v.toFixed(0) } }
+      },
+      interaction: { intersect: false, mode: 'index' }
+    }
+  });
+}
+renderPerf(12);
+
+function setRange(range, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  const map = { '1Y': 12, '3Y': 36, '5Y': 60, 'ALL': 120 };
+  renderPerf(map[range]);
+}
+
+// --- Allocation Doughnut ---
+new Chart(document.getElementById('allocChart').getContext('2d'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Bonds', 'Equities'],
+    datasets: [{ data: [60, 40], backgroundColor: ['#3b82f6', '#a78bfa'], borderWidth: 0, hoverOffset: 8 }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false, cutout: '70%',
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed}%` } }
+    }
+  }
+});
+
+// --- Income Bar Chart ---
+const incomeMonths = ['Sep','Oct','Nov','Dec','Jan','Feb'];
+const incomeData = [3420, 3510, 3480, 3650, 3580, 3620];
+new Chart(document.getElementById('incomeChart').getContext('2d'), {
+  type: 'bar',
+  data: {
+    labels: incomeMonths,
+    datasets: [{ data: incomeData, backgroundColor: 'rgba(59,130,246,0.5)', borderRadius: 4, barPercentage: 0.6 }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `$${ctx.parsed.y.toLocaleString()}` } } },
+    scales: {
+      x: { grid: { display: false }, ticks: { color: '#6b7280' } },
+      y: { display: false }
+    }
+  }
+});
+</script>
+</body>
+</html>
