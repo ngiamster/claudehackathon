@@ -70,3 +70,115 @@ function totalAllocation() {
 function totalHoldingsWeight() {
   return HOLDINGS.reduce((sum, h) => sum + h.weight, 0);
 }
+
+// ─── Supabase Integration ────────────────────────────────────────────────────
+
+/**
+ * Fetch all dashboard data from Supabase in parallel.
+ * @param {object} client - Supabase client instance.
+ * @returns {Promise<{ holdings, metrics, performance, income }>}
+ */
+async function loadDashboardData(client) {
+  const [holdingsRes, metricsRes, perfRes, incomeRes] = await Promise.all([
+    client.from('holdings').select('*').order('weight', { ascending: false }),
+    client.from('metrics').select('*').limit(1).single(),
+    client.from('performance').select('*').order('period'),
+    client.from('income').select('*').order('period'),
+  ]);
+  const errors = [holdingsRes.error, metricsRes.error, perfRes.error, incomeRes.error].filter(Boolean);
+  if (errors.length) console.error('Supabase fetch errors:', errors);
+  return {
+    holdings:    holdingsRes.data ?? [],
+    metrics:     metricsRes.data  ?? null,
+    performance: perfRes.data     ?? [],
+    income:      incomeRes.data   ?? [],
+  };
+}
+
+/**
+ * Update KPI cards and risk metrics table from a metrics row.
+ * @param {object} m - Row from the metrics table.
+ */
+function renderMetrics(m) {
+  if (!m) return;
+  const fmtNum = n => Number(n).toLocaleString();
+  document.getElementById('kpi-value').textContent        = `$${fmtNum(m.total_value)}`;
+  document.getElementById('kpi-value-change').textContent = `+$${fmtNum(m.ytd_gain)} (+${m.ytd_gain_pct}%) YTD`;
+  document.getElementById('kpi-return').textContent       = `+${m.annual_return}%`;
+  document.getElementById('kpi-benchmark').textContent    = `Benchmark: +${m.benchmark_return}%`;
+  document.getElementById('kpi-yield').textContent        = `${m.yield_ttm}%`;
+  document.getElementById('kpi-income').textContent       = `$${fmtNum(m.annual_income)} annual income`;
+  document.getElementById('kpi-sharpe').textContent       = m.sharpe_ratio;
+  document.getElementById('risk-volatility').textContent  = `${m.volatility}%`;
+  document.getElementById('risk-drawdown').textContent    = `${m.max_drawdown}%`;
+  document.getElementById('risk-beta').textContent        = m.beta;
+  document.getElementById('risk-sortino').textContent     = m.sortino_ratio;
+  document.getElementById('risk-duration').textContent    = `${m.bond_duration} yrs`;
+}
+
+/**
+ * Re-render the holdings table from Supabase rows.
+ * @param {object[]} holdings
+ */
+function renderHoldings(holdings) {
+  if (!holdings.length) return;
+  document.getElementById('holdings-tbody').innerHTML = holdings.map(h => {
+    const pos = h.annual_return >= 0;
+    return `<tr>
+      <td>${h.name} (${h.ticker})</td>
+      <td>${h.type}</td>
+      <td>${h.weight}%</td>
+      <td><span class="tag ${pos ? 'tag-green' : 'tag-red'}">${pos ? '+' : ''}${h.annual_return}%</span></td>
+    </tr>`;
+  }).join('');
+}
+
+/**
+ * Render the performance line chart from Supabase rows.
+ * @param {object[]} rows - Rows with period, portfolio_value, benchmark_value.
+ */
+function renderPerfFromDB(rows) {
+  const labels    = rows.map(r => new Date(r.period + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', year: '2-digit' }));
+  const portfolio = rows.map(r => +Number(r.portfolio_value).toFixed(2));
+  const benchmark = rows.map(r => +Number(r.benchmark_value).toFixed(2));
+  if (window._perfChart) window._perfChart.destroy();
+  window._perfChart = new Chart(document.getElementById('perfChart').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Portfolio', data: portfolio, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.08)', fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2.5 },
+        { label: 'Benchmark', data: benchmark, borderColor: '#6b7280', borderDash: [6,4], fill: false, tension: 0.3, pointRadius: 0, borderWidth: 1.5 },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: true, position: 'top', labels: { color: '#9ca3af', usePointStyle: true, pointStyle: 'line', font: { size: 12 } } } },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#6b7280', maxTicksLimit: 12 } },
+        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#6b7280', callback: v => v.toFixed(0) } },
+      },
+      interaction: { intersect: false, mode: 'index' },
+    },
+  });
+}
+
+/**
+ * Render the income bar chart from Supabase rows.
+ * @param {object[]} rows - Rows with period and amount.
+ */
+function renderIncomeFromDB(rows) {
+  if (!rows.length) return;
+  const labels = rows.map(r => new Date(r.period + 'T00:00:00').toLocaleDateString('en-US', { month: 'short' }));
+  const data   = rows.map(r => Number(r.amount));
+  if (window._incomeChart) window._incomeChart.destroy();
+  window._incomeChart = new Chart(document.getElementById('incomeChart').getContext('2d'), {
+    type: 'bar',
+    data: { labels, datasets: [{ data, backgroundColor: 'rgba(59,130,246,0.5)', borderRadius: 4, barPercentage: 0.6 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `$${ctx.parsed.y.toLocaleString()}` } } },
+      scales: { x: { grid: { display: false }, ticks: { color: '#6b7280' } }, y: { display: false } },
+    },
+  });
+}
